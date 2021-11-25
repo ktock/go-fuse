@@ -10,10 +10,13 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"fmt"
+	"path/filepath"
 
 	"golang.org/x/sys/unix"
 
 	"github.com/hanwen/go-fuse/v2/fuse"
+	"github.com/hanwen/go-fuse/v2/internal/testutil"
 )
 
 func TestTouch(t *testing.T) {
@@ -116,6 +119,36 @@ func clearStatfs(s *syscall.Statfs_t) {
 	s.Spare = empty.Spare
 	// TODO - figure out what this is for.
 	s.Flags = 0
+}
+
+func TestOverlayfs(t *testing.T) {
+	// TODO: skip on kernel 5.15
+	tc := NewTestCase(t)
+	defer tc.Cleanup()
+
+	testfile := "test"
+	content := randomData(125)
+	tc.Mkdir(tc.origSubdir, 0777)
+	tc.WriteFile(filepath.Join(tc.origSubdir, testfile), content, 0700)
+
+	tmpMergedDir := testutil.TempDir()
+	defer os.RemoveAll(tmpMergedDir)
+	tmpWorkDir := testutil.TempDir()
+	defer os.RemoveAll(tmpWorkDir)
+	tmpUpperDir := testutil.TempDir()
+	defer os.RemoveAll(tmpUpperDir)
+	if err := unix.Mount("overlay", tmpMergedDir, "overlay", 0,
+		fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", tc.mnt, tmpUpperDir, tmpWorkDir)); err != nil {
+		t.Fatalf("failed to mount overlay: %v", err)
+	}
+	defer unix.Unmount(tmpMergedDir, 0)
+
+	// check if write succeeds
+	content = randomData(250)
+	err := ioutil.WriteFile(filepath.Join(tmpMergedDir, "subdir", testfile), content, 0700)
+	if err != nil {
+		t.Fatalf("failed to write to upper: %v", err)
+	}
 }
 
 func TestFallocate(t *testing.T) {
