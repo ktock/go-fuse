@@ -121,6 +121,7 @@ func clearStatfs(s *syscall.Statfs_t) {
 	s.Flags = 0
 }
 
+// Check that fuse mount can serve as a overlayfs lowerdir.
 func TestOverlayfs(t *testing.T) {
 	if os.Getuid() != 0 {
 		t.Skip("this test requires root")
@@ -145,12 +146,6 @@ func TestOverlayfs(t *testing.T) {
 	}
 	defer unix.Unmount(tmpMergedDir, 0)
 
-	// // check if write succeeds
-	// content = randomData(250)
-	// err := ioutil.WriteFile(filepath.Join(tmpMergedDir, "subdir", testfile), content, 0700)
-	// if err != nil {
-	// 	t.Fatalf("failed to write to upper: %v", err)
-	// }
 	err := os.Chtimes(filepath.Join(tmpMergedDir, "subdir", testfile), time.Unix(42, 0), time.Unix(43, 0))
 	if err != nil {
 		t.Fatalf("Chtimes failed: %v", err)
